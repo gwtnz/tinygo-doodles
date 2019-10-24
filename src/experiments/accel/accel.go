@@ -1,10 +1,10 @@
 package main
 
-// Use goroutines to spin off led timing for each of the user LEDs on the stm32f4 discovery board
+// test the stm32f4 discovery board accelerometer, LIS302DL
 
 import (
-	"machine"
 	"time"
+	"tiny-go/tinygo/machine"
 )
 
 func main() {
