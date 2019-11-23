@@ -8,14 +8,17 @@ import (
 )
 
 func main() {
-	go ledFn(machine.LED1, 125)
-	go ledFn(machine.LED2, 250)
-	go ledFn(machine.LED3, 500)
-	ledFn(machine.LED4, 1000)
+	var dur time.Duration = 1000
+	go ledFn(machine.LED1, dur)
+	dur <<= 1
+	go ledFn(machine.LED2, dur)
+	dur <<= 1
+	go ledFn(machine.LED3, dur)
+	dur <<= 1
+	ledFn(machine.LED4, dur)
 }
 
 func ledFn(led machine.Pin, timing time.Duration) {
-	//led := machine.LED1
 	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
 	for {
 		println("+")
