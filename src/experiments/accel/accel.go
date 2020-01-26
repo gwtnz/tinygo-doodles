@@ -45,35 +45,35 @@ func setAccelReg(cmd, val byte) (byte, error) {
 
 // Read a 1-byte register from the accelerometer
 func getAccelReg(cmd byte) (byte, error) {
-	// just use the setAccelReg call with the read|/write flag set
+	// just use the setAccelReg call with the read | /write flag set
 	cmd = cmd | 0x80
 	return setAccelReg(cmd, 0x00)
 }
 
-// Get accelerometer ID, read command
+// Get accelerometer ID
 func getAccelID() (byte, error) {
-	return getAccelReg(0x8F)
+	return getAccelReg(0x0F)
 }
 
-// Get accelerometer status, read command
+// Get accelerometer status
 func getAccelStatus() (byte, error) {
-	return getAccelReg(0xa7)
+	return getAccelReg(0x27)
 }
 
-// Get accelerometer control registers, read command
+// Get accelerometer control registers
 func getAccelCtrl(reg byte) (byte, error) {
-	return getAccelReg(0xa0 + (reg%3 - 1))
+	return getAccelReg(0x20 + (reg%3 - 1))
 }
 
-// Set accelerometer control registers, read command
+// Set accelerometer control registers
 func setAccelCtrl(reg, val byte) (byte, error) {
-	return setAccelReg(0xa0+(reg%3-1), val)
+	return setAccelReg(0x20+(reg%3-1), val)
 }
 
 // Get the current accelerometer X Y and Z values
 func getAccelValues() (int8, int8, int8, error) {
 	// Get accelerometer status, read+incr command
-	cmd := []byte{0xe9, 0x00, 0x00, 0x00, 0x00, 0x00}
+	cmd := []byte{0x29 | 0x80, 0x00, 0x00, 0x00, 0x00, 0x00}
 	resp := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	err := sendSPIAccel(cmd, resp)
 	if err != nil {
