@@ -8,14 +8,22 @@ import (
 )
 
 func main() {
-	var dur time.Duration = 1000
+	var dur time.Duration = 500
 	go ledFn(machine.LED1, dur)
 	dur <<= 1
 	go ledFn(machine.LED2, dur)
 	dur <<= 1
 	go ledFn(machine.LED3, dur)
 	dur <<= 1
-	ledFn(machine.LED4, dur)
+	go ledFn(machine.LED4, dur)
+	programID("blinky4", dur)
+}
+
+func programID(msg string, timing time.Duration) {
+	for {
+		println(msg)
+		time.Sleep(time.Millisecond * timing)
+	}
 }
 
 func ledFn(led machine.Pin, timing time.Duration) {

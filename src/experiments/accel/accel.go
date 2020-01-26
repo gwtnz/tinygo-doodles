@@ -3,70 +3,147 @@ package main
 // test the stm32f4 discovery board accelerometer, LIS302DL
 
 import (
+	"encoding/hex"
+	"fmt"
+	"machine"
 	"time"
-	"tiny-go/tinygo/machine"
-	"device/stm32"
 )
 
-// SPI pins
-const (
-	SPI0_SCK_PIN  = PA5
-	SPI0_MOSI_PIN = PA7
-	SPI0_MISO_PIN = PA6
-)
+var ctrl1, status byte
+var x, y, z int8
 
-// I2C pins
-const (
-	SDA_PIN = PA7
-	SCL_PIN = PA5
-)
+func initAccel() {
+	var SPI1Conf = machine.SPIConfig{Frequency: 1312500}
+	machine.MEMS_ACCEL_CS.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	// Set the /CS line high in idle
+	machine.MEMS_ACCEL_CS.Set(true)
+	machine.SPI1.Configure(SPI1Conf)
+	// LIS302DL needs a short period to boot up
+	time.Sleep(time.Millisecond * 5)
+}
 
-// MEMs accelerometer
-const (
-  MEMS_ACCEL_CS = PE6
-)
+func sendSPIAccel(cmd, resp []byte) error {
+	// Pull /CS low to enable accelerometer
+	machine.MEMS_ACCEL_CS.Set(false)
+	err := machine.SPI1.Tx(cmd, resp)
+	// Pull /CS high when done
+	machine.MEMS_ACCEL_CS.Set(true)
 
-func spi1Init() {
-	//code to configure PE3
-RCC->AHB1ENR |= 1 << 4;	//enable clock to GPIOE
-GPIOE->MODER |= 1 << 6;	//MODER3[1:0] = 01 bin
-//code to enable AF - SPI1
-RCC->AHB1ENR |= 1 << 0;	//enable clock to GPIOA
-RCC->APB2ENR |= 1 << 12;	//clock to SPI1
-GPIOA->AFR[0] |= (5<< 20);	//enable SPI CLK to PA5
-GPIOA->AFR[0] |= (5<< 24);	//enable MISO to PA6
-GPIOA->AFR[0] |= (5<< 28);	//enable MOSI to PA7
-GPIOA->MODER &= ~(3 << 10);	//clear bits 10 & 11
-GPIOA->MODER |= 2 << 10;	//MODER5[1:0] = 10 bin
-GPIOA->MODER &= ~(3 << 12);	//clear bits 12 & 13
-GPIOA->MODER |= 2 << 12;	//MODER6[1:0] = 10 bin
-GPIOA->MODER &= ~(3 << 14);	//clear bits 14 & 15
-GPIOA->MODER |= 2 << 14;	//MODER7[1:0] = 10 bin
-SPI1->CR1	= 0x0003;	// CPOL=1, CPHA=1
-SPI1->CR1	|= 1 << 2;	// Master Mode
-SPI1->CR1	|= 1<<6;	// SPI enabled
-SPI1->CR1	&= ~(7<<3);	// Use maximum frequency
-SPI1->CR1	|= 3<<8;	// Soltware disables slave function
-SPI1->CR2 = 0x0000;	//Motorola Format -
+	return err
+}
+
+// Write a 1-byte value to a register in the accelerometer
+func setAccelReg(cmd, val byte) (byte, error) {
+	cmdArr := []byte{cmd, val}
+	respArr := []byte{0x00, 0x00}
+	err := sendSPIAccel(cmdArr, respArr)
+	if err != nil {
+		return 0xff, err
+	}
+	return respArr[1], nil
+}
+
+// Read a 1-byte register from the accelerometer
+func getAccelReg(cmd byte) (byte, error) {
+	// just use the setAccelReg call with the read|/write flag set
+	cmd = cmd | 0x80
+	return setAccelReg(cmd, 0x00)
+}
+
+// Get accelerometer ID, read command
+func getAccelID() (byte, error) {
+	return getAccelReg(0x8F)
+}
+
+// Get accelerometer status, read command
+func getAccelStatus() (byte, error) {
+	return getAccelReg(0xa7)
+}
+
+// Get accelerometer control registers, read command
+func getAccelCtrl(reg byte) (byte, error) {
+	return getAccelReg(0xa0 + (reg%3 - 1))
+}
+
+// Set accelerometer control registers, read command
+func setAccelCtrl(reg, val byte) (byte, error) {
+	return setAccelReg(0xa0+(reg%3-1), val)
+}
+
+// Get the current accelerometer X Y and Z values
+func getAccelValues() (int8, int8, int8, error) {
+	// Get accelerometer status, read+incr command
+	cmd := []byte{0xe9, 0x00, 0x00, 0x00, 0x00, 0x00}
+	resp := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	err := sendSPIAccel(cmd, resp)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if 1 == 0 {
+		println(hex.Dump(resp))
+	}
+	return int8(resp[1]), int8(resp[3]), int8(resp[5]), nil
+}
+
+func listenForAccel(timing time.Duration) {
+	// Wake up the accelerometer from power-down mode
+	_, err := setAccelReg(0x20, 0x47)
+	if err != nil {
+		println("Unable to wake up accelerometer")
+		return
+	}
+	// Scan for accelation values
+	for {
+		// Read status register till there's data, then read the data, then sleep
+		ctrl1, err = getAccelCtrl(1)
+		if err != nil {
+			println("Error rx-ing ctrl-1")
+		}
+		status, err = getAccelStatus()
+		if err != nil {
+			println("Error rx-ing status")
+		} else {
+			//status |= 0x3
+			if status&0x3 != 0 || 1 > 0 {
+				// data available
+				x, y, z, err = getAccelValues()
+				if err != nil {
+					println("Error rx-ing X/Y/Z")
+				}
+			}
+		}
+		time.Sleep(time.Millisecond * timing)
+	}
+}
+
+func displayAccel(timing time.Duration) {
+	i := 0
+	for {
+		// Show the output. append spaces to values so they are cleared on screen
+		fmt.Printf("%03d : ctrl1=%08b\tstatus=%08b\tx=% 3d  \ty=% 3d  \tz=% 3d  \r",
+			i%1000, ctrl1, status, x, y, z)
+		time.Sleep(time.Millisecond * timing)
+		i = i + 1
+	}
+}
+
+func programID(msg string, timing time.Duration) {
+	for {
+		println("\n" + msg)
+		time.Sleep(time.Millisecond * timing)
+	}
 }
 
 func main() {
-	go ledFn(machine.LED1, 125)
-	go ledFn(machine.LED2, 250)
-	go ledFn(machine.LED3, 500)
-	ledFn(machine.LED4, 1000)
-}
-
-func ledFn(led machine.Pin, timing time.Duration) {
-	//led := machine.LED1
-	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	for {
-		println("+")
-		led.Low()
-		time.Sleep(time.Millisecond * timing)
-
-		println("-")
-		led.High()
-		time.Sleep(time.Millisecond * timing)
+	go programID("accel", 5000)
+	initAccel()
+	// See if accelerometer is responding on SPI
+	id, err := getAccelID()
+	if err != nil {
+		println("Unable to read accelerometer ID; accelerometer setup error")
+	} else {
+		fmt.Printf("Accelerometer ID : %02x (should be 0x3b for LIS302DL)\n", id)
+		go listenForAccel(10) // check every ~200th of second
+		displayAccel(200)
 	}
 }
