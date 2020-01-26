@@ -1,4 +1,4 @@
-module git.target.com/GeoffThomas/tinygo
+module git.target.com/GeoffThomas/tinygo-doodles
 
 go 1.12
 
