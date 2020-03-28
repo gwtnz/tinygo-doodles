@@ -13,13 +13,13 @@ var ctrl1, status byte
 var x, y, z int8
 
 func initAccel() {
-	var SPI1Conf = machine.SPIConfig{Frequency: 1312500}
+	SPI1Conf := machine.SPIConfig{Frequency: 1000000}
 	machine.MEMS_ACCEL_CS.Configure(machine.PinConfig{Mode: machine.PinOutput})
 	// Set the /CS line high in idle
 	machine.MEMS_ACCEL_CS.Set(true)
 	machine.SPI1.Configure(SPI1Conf)
 	// LIS302DL needs a short period to boot up
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * 10)
 }
 
 func sendSPIAccel(cmd, resp []byte) error {
@@ -73,7 +73,7 @@ func setAccelCtrl(reg, val byte) (byte, error) {
 // Get the current accelerometer X Y and Z values
 func getAccelValues() (int8, int8, int8, error) {
 	// Get accelerometer status, read+incr command
-	cmd := []byte{0x29 | 0x80, 0x00, 0x00, 0x00, 0x00, 0x00}
+	cmd := []byte{0x29 | 0x80 | 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}
 	resp := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	err := sendSPIAccel(cmd, resp)
 	if err != nil {
@@ -104,7 +104,7 @@ func listenForAccel(timing time.Duration) {
 			println("Error rx-ing status")
 		} else {
 			//status |= 0x3
-			if status&0x3 != 0 || 1 > 0 {
+			if status&0x3 != 0 {
 				// data available
 				x, y, z, err = getAccelValues()
 				if err != nil {
@@ -120,7 +120,7 @@ func displayAccel(timing time.Duration) {
 	i := 0
 	for {
 		// Show the output. append spaces to values so they are cleared on screen
-		fmt.Printf("%03d : ctrl1=%08b\tstatus=%08b\tx=% 3d  \ty=% 3d  \tz=% 3d  \r",
+		fmt.Printf("%03d : ctrl1=%08b\tstatus=%08b\tx=% 3x  \ty=% 3x  \tz=% 3x  \r",
 			i%1000, ctrl1, status, x, y, z)
 		time.Sleep(time.Millisecond * timing)
 		i = i + 1
