@@ -95,7 +95,7 @@ func programID(msg string, timing time.Duration) {
 
 func main() {
 	output = false
-	//go programID("i2c codec", 5000)
+	go programID("i2c codec", 5000)
 	initI2CCodec()
 
 	// loop for a while
